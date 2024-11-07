@@ -4,16 +4,13 @@ from telegram.error import TelegramError
 from pymongo import MongoClient
 import re
 
-# Define states for conversation
 ASK_EDIT_TYPE, ASK_MESSAGE_LINK, EDIT_MESSAGE = range(3)
 
-# MongoDB setup
-client = MongoClient("mongodb://localhost:27017/")
+client = MongoClient("mongodb+srv://Cenzo:Cenzo123@cenzo.azbk1.mongodb.net/")
 db = client["telegram_bot"]
 sudo_users_collection = db["sudo_users"]
 
-# Set the owner ID
-OWNER_ID = 123456789  # Replace with the actual owner ID
+OWNER_ID =6663845789
 
 async def is_sudo_user(user_id: int) -> bool:
     return sudo_users_collection.find_one({"user_id": user_id}) is not None
