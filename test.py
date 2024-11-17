@@ -13,13 +13,10 @@ sudo_users_collection = db["sudo_users"]
 
 OWNER_ID = 6663845789
 
-
 def is_sudo_user(user_id: int) -> bool:
-    """Check if the user is a sudo user."""
     return sudo_users_collection.find_one({"user_id": user_id}) is not None
 
-
-async def start(update: Update, context: CallbackContext) -> int:
+def start(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
     if user_id != OWNER_ID and not is_sudo_user(user_id):
         update.message.reply_text("You don't have permission to use this bot.")
@@ -33,9 +30,7 @@ async def start(update: Update, context: CallbackContext) -> int:
     )
     return ASK_EDIT_TYPE
 
-
 def sudo(update: Update, context: CallbackContext):
-    """Grant sudo access."""
     if update.effective_user.id != OWNER_ID:
         update.message.reply_text("Only the bot owner can grant sudo access.")
         return
@@ -46,16 +41,14 @@ def sudo(update: Update, context: CallbackContext):
             if sudo_users_collection.find_one({"user_id": user_id}):
                 update.message.reply_text("User already has sudo access.")
             else:
-                sudo_users_collection.insert_one({"user_id": user_id, "name": update.message.reply_to_message.from_user.first_name})
+                sudo_users_collection.insert_one({"user_id": user_id})
                 update.message.reply_text(f"Sudo access granted to user {user_id}.")
         except ValueError:
             update.message.reply_text("Invalid user ID format.")
     else:
         update.message.reply_text("Usage: /sudo <user_id>")
 
-
 def rmsudo(update: Update, context: CallbackContext):
-    """Revoke sudo access."""
     if update.effective_user.id != OWNER_ID:
         update.message.reply_text("Only the bot owner can revoke sudo access.")
         return
@@ -73,58 +66,83 @@ def rmsudo(update: Update, context: CallbackContext):
     else:
         update.message.reply_text("Usage: /rmsudo <user_id>")
 
-
-def sudolist(update: Update, context: CallbackContext):
-    """Show the list of sudo users."""
-    if update.effective_user.id != OWNER_ID:
-        update.message.reply_text("Only the bot owner can view the sudo list.")
-        return
-
-    sudo_users = sudo_users_collection.find()
-    if sudo_users.count() == 0:
-        update.message.reply_text("No sudo users found.")
+def ask_message_link(update: Update, context: CallbackContext) -> int:
+    choice = update.message.text
+    if choice == '1':
+        context.user_data['edit_type'] = 'text'
+    elif choice == '2':
+        context.user_data['edit_type'] = 'media'
     else:
-        sudo_list = "Sudo Users:\n\n"
-        for user in sudo_users:
-            sudo_list += f"Name: {user.get('name', 'Unknown')}\nUser ID: {user['user_id']}\n\n"
-        update.message.reply_text(sudo_list)
+        update.message.reply_text("Invalid choice. Please send '1' for Text or '2' for Media/File.")
+        return ASK_EDIT_TYPE
 
+    update.message.reply_text("Please provide the message link of the group chat to edit:")
+    return ASK_MESSAGE_LINK
 
-def send_message(update: Update, context: CallbackContext):
-    """Send a message to a specific chat."""
-    user_id = update.effective_user.id
+def parse_message_link(link: str):
+    public_match = re.match(r"https://t\.me/([\w\d_]+)/(\d+)", link)
+    if public_match:
+        chat_id = f"@{public_match.group(1)}"
+        message_id = int(public_match.group(2))
+        return chat_id, message_id
 
-    if user_id != OWNER_ID and not is_sudo_user(user_id):
-        update.message.reply_text("You don't have permission to use this command.")
-        return
+    private_match = re.match(r"https://t\.me/c/(-?\d+)/(\d+)", link)
+    if private_match:
+        chat_id = int(private_match.group(1))
+        message_id = int(private_match.group(2))
+        return chat_id, message_id
 
-    if len(context.args) < 2:
-        update.message.reply_text("Usage: /send <message> <group_username/chat_id/group_link>")
-        return
+    return None, None
 
-    message_text = " ".join(context.args[:-1])
-    group_identifier = context.args[-1]
+def edit_message(update: Update, context: CallbackContext) -> int:
+    message_link = update.message.text
+    chat_id, message_id = parse_message_link(message_link)
 
-    chat_id = None
-    if group_identifier.isdigit() or (group_identifier[1:].isdigit() and group_identifier.startswith('-')):
-        chat_id = int(group_identifier)
-    elif group_identifier.startswith('@'):
-        chat_id = group_identifier
-    else:
-        match = re.match(r"https://t\.me/([\w\d_]+)", group_identifier)
-        if match:
-            chat_id = f"@{match.group(1)}"
+    if not chat_id or not message_id:
+        update.message.reply_text("Invalid message link. Please provide a valid public or private link.")
+        return ASK_MESSAGE_LINK
 
-    if not chat_id:
-        update.message.reply_text("Invalid group identifier. Please provide a valid chat ID, username, or link.")
-        return
+    context.user_data['chat_id'] = chat_id
+    context.user_data['message_id'] = message_id
+
+    edit_type = context.user_data.get('edit_type')
+    if edit_type == 'text':
+        update.message.reply_text("Send the new text to update the message.")
+    elif edit_type == 'media':
+        update.message.reply_text("Send the new media/file to update the message.")
+
+    return EDIT_MESSAGE
+
+def apply_edit(update: Update, context: CallbackContext) -> int:
+    chat_id = context.user_data.get('chat_id')
+    message_id = context.user_data.get('message_id')
+    edit_type = context.user_data.get('edit_type')
 
     try:
-        context.bot.send_message(chat_id=chat_id, text=message_text)
-        update.message.reply_text("Message sent successfully!")
-    except TelegramError as e:
-        update.message.reply_text(f"Failed to send the message: {e}")
+        if edit_type == 'text':
+            new_text = update.message.text
+            context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=new_text, parse_mode=ParseMode.HTML)
+            update.message.reply_text("Message text updated successfully!")
+        elif edit_type == 'media':
+            if update.message.photo:
+                media = InputMediaPhoto(update.message.photo[-1].file_id)
+            elif update.message.document:
+                media = InputMediaDocument(update.message.document.file_id)
+            else:
+                update.message.reply_text("Please send a valid media/file to replace.")
+                return EDIT_MESSAGE
 
+            context.bot.edit_message_media(chat_id=chat_id, message_id=message_id, media=media)
+            update.message.reply_text("Message media/file updated successfully!")
+
+        return ConversationHandler.END
+    except TelegramError as e:
+        update.message.reply_text(f"Error: {e}")
+        return ConversationHandler.END
+
+def cancel(update: Update, context: CallbackContext) -> int:
+    update.message.reply_text("Edit operation cancelled.")
+    return ConversationHandler.END
 
 def main():
     updater = Updater("7382235042:AAFv5nrAHJEnq3cuJUOTCGLKYdVDeIaYZnE", use_context=True)
@@ -143,12 +161,9 @@ def main():
     dp.add_handler(conv_handler)
     dp.add_handler(CommandHandler("sudo", sudo))
     dp.add_handler(CommandHandler("rmsudo", rmsudo))
-    dp.add_handler(CommandHandler("sudolist", sudolist))
-    dp.add_handler(CommandHandler("send", send_message))
 
     updater.start_polling()
     updater.idle()
-
 
 if __name__ == "__main__":
     main()
