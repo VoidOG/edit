@@ -143,6 +143,39 @@ def apply_edit(update: Update, context: CallbackContext) -> int:
 def cancel(update: Update, context: CallbackContext) -> int:
     update.message.reply_text("Edit operation cancelled.")
     return ConversationHandler.END
+    
+def sudolist(update: Update, context: CallbackContext):
+    if update.effective_user.id != OWNER_ID:
+        update.message.reply_text("You don't have permission to view the sudo list.")
+        return
+
+    sudo_users = sudo_users_collection.find()
+    if sudo_users.count() == 0:
+        update.message.reply_text("No sudo users found.")
+        return
+
+    sudo_list = "\n".join([str(user["user_id"]) for user in sudo_users])
+    update.message.reply_text(f"Sudo Users:\n{sudo_list}")
+
+def send(update: Update, context: CallbackContext):
+    user_id = update.effective_user.id
+    if user_id != OWNER_ID and not is_sudo_user(user_id):
+        update.message.reply_text("You don't have permission to use this command.")
+        return
+
+    if len(context.args) < 2:
+        update.message.reply_text("Usage: /send <user_id> <message>")
+        return
+
+    try:
+        target_user_id = int(context.args[0])
+        message = " ".join(context.args[1:])
+        context.bot.send_message(chat_id=target_user_id, text=message)
+        update.message.reply_text("Message sent successfully!")
+    except ValueError:
+        update.message.reply_text("Invalid user ID format.")
+    except TelegramError as e:
+        update.message.reply_text(f"Failed to send message: {e}")
 
 def main():
     updater = Updater("7382235042:AAFv5nrAHJEnq3cuJUOTCGLKYdVDeIaYZnE", use_context=True)
@@ -161,6 +194,8 @@ def main():
     dp.add_handler(conv_handler)
     dp.add_handler(CommandHandler("sudo", sudo))
     dp.add_handler(CommandHandler("rmsudo", rmsudo))
+    dp.add_handler(CommandHandler("sudolist", sudolist))  # Added handler for /sudolist
+    dp.add_handler(CommandHandler("send", send))          # Added handler for /send
 
     updater.start_polling()
     updater.idle()
