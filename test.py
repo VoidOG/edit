@@ -149,8 +149,8 @@ def sudolist(update: Update, context: CallbackContext):
         update.message.reply_text("You don't have permission to view the sudo list.")
         return
 
-    sudo_users = sudo_users_collection.find()
-    if sudo_users.count() == 0:
+    sudo_users = list(sudo_users_collection.find())
+    if len(sudo_users) == 0:
         update.message.reply_text("No sudo users found.")
         return
 
