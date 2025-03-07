@@ -14,12 +14,11 @@ def start(update: Update, context: CallbackContext):
             "This bot helps remove **DMCA-infringing** and **NSFW** content.\n",
         )
         return
-    
     update.message.reply_text(
-    "**Owner Panel of Bot**\n"
-    "➡️ `/send <chat\\_id | link> <message>` to send messages.\n"
-    "➡️ `/edit` to edit messages in groups/channels.",
-    parse_mode=ParseMode.MARKDOWN_V2
+        "**Owner Panel Of The Bot**\n\n"
+        "Use:\n"
+        "➡️ `/send <chat_id | link> <message>` to send messages.\n"
+        "➡️ `/edit` to edit messages in groups/channels."
     )
     
 def parse_message_link(link: str):
