@@ -16,11 +16,12 @@ def start(update: Update, context: CallbackContext):
         return
     
     update.message.reply_text(
-        "**Owner Panel of Bot**\n",
-        "➡️ `/send <chat_id | link> <message>` to send messages.\n",
-        "➡️ `/edit` to edit messages in groups/channels."
+    "**Owner Panel of Bot**\n"
+    "➡️ `/send <chat_id | link> <message>` to send messages.\n"
+    "➡️ `/edit` to edit messages in groups/channels.",
+    parse_mode=ParseMode.MARKDOWN_V2  # or ParseMode.HTML if you use HTML formatting
     )
-
+    
 def parse_message_link(link: str):
     """Extracts chat ID and message ID from Telegram message links."""
     public_match = re.match(r"https://t\.me/([\w\d_]+)/(\d+)", link)
