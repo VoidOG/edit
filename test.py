@@ -18,53 +18,23 @@ def is_sudo_user(user_id: int) -> bool:
 
 def start(update: Update, context: CallbackContext) -> int:
     user_id = update.effective_user.id
-    if user_id != OWNER_ID and not is_sudo_user(user_id):
-        update.message.reply_text("You don't have permission to use this bot.")
+    
+    if user_id != OWNER_ID:
+        update.message.reply_text(
+            "📢 *Welcome to the Copyright Protection Bot!*\n\n"
+            "This bot helps in removing **DMCA & NSFW content** from groups. ",
+            parse_mode=ParseMode.MARKDOWN
+        )
         return ConversationHandler.END
 
     update.message.reply_text(
-        "Do you want to:\n"
-        "1. Edit Text\n"
-        "2. Replace Media/File\n\n"
-        "Send '1' for Text or '2' for Media/File."
+        "🔧 *Bot Control Panel*\n\n"
+        "1️⃣ Edit Text\n"
+        "2️⃣ Replace Media/File\n\n"
+        "Send '1' for Text or '2' for Media/File.",
+        parse_mode=ParseMode.MARKDOWN
     )
     return ASK_EDIT_TYPE
-
-def sudo(update: Update, context: CallbackContext):
-    if update.effective_user.id != OWNER_ID:
-        update.message.reply_text("Only the bot owner can grant sudo access.")
-        return
-
-    if context.args:
-        try:
-            user_id = int(context.args[0])
-            if sudo_users_collection.find_one({"user_id": user_id}):
-                update.message.reply_text("User already has sudo access.")
-            else:
-                sudo_users_collection.insert_one({"user_id": user_id})
-                update.message.reply_text(f"Sudo access granted to user {user_id}.")
-        except ValueError:
-            update.message.reply_text("Invalid user ID format.")
-    else:
-        update.message.reply_text("Usage: /sudo <user_id>")
-
-def rmsudo(update: Update, context: CallbackContext):
-    if update.effective_user.id != OWNER_ID:
-        update.message.reply_text("Only the bot owner can revoke sudo access.")
-        return
-
-    if context.args:
-        try:
-            user_id = int(context.args[0])
-            result = sudo_users_collection.delete_one({"user_id": user_id})
-            if result.deleted_count > 0:
-                update.message.reply_text(f"Sudo access revoked for user {user_id}.")
-            else:
-                update.message.reply_text("User does not have sudo access.")
-        except ValueError:
-            update.message.reply_text("Invalid user ID format.")
-    else:
-        update.message.reply_text("Usage: /rmsudo <user_id>")
 
 def ask_message_link(update: Update, context: CallbackContext) -> int:
     choice = update.message.text
@@ -73,10 +43,10 @@ def ask_message_link(update: Update, context: CallbackContext) -> int:
     elif choice == '2':
         context.user_data['edit_type'] = 'media'
     else:
-        update.message.reply_text("Invalid choice. Please send '1' for Text or '2' for Media/File.")
+        update.message.reply_text("❌ Invalid choice. Send '1' for Text or '2' for Media/File.")
         return ASK_EDIT_TYPE
 
-    update.message.reply_text("Please provide the message link of the group chat to edit:")
+    update.message.reply_text("📌 Please provide the message link of the group chat to edit:")
     return ASK_MESSAGE_LINK
 
 def parse_message_link(link: str):
@@ -99,7 +69,7 @@ def edit_message(update: Update, context: CallbackContext) -> int:
     chat_id, message_id = parse_message_link(message_link)
 
     if not chat_id or not message_id:
-        update.message.reply_text("Invalid message link. Please provide a valid public or private link.")
+        update.message.reply_text("❌ Invalid message link. Please provide a valid public or private link.")
         return ASK_MESSAGE_LINK
 
     context.user_data['chat_id'] = chat_id
@@ -107,9 +77,9 @@ def edit_message(update: Update, context: CallbackContext) -> int:
 
     edit_type = context.user_data.get('edit_type')
     if edit_type == 'text':
-        update.message.reply_text("Send the new text to update the message.")
+        update.message.reply_text("✍ Send the new text to update the message.")
     elif edit_type == 'media':
-        update.message.reply_text("Send the new media/file to update the message.")
+        update.message.reply_text("📤 Send the new media/file to update the message.")
 
     return EDIT_MESSAGE
 
@@ -122,60 +92,27 @@ def apply_edit(update: Update, context: CallbackContext) -> int:
         if edit_type == 'text':
             new_text = update.message.text
             context.bot.edit_message_text(chat_id=chat_id, message_id=message_id, text=new_text, parse_mode=ParseMode.HTML)
-            update.message.reply_text("Message text updated successfully!")
+            update.message.reply_text("✅ Message text updated successfully!")
         elif edit_type == 'media':
             if update.message.photo:
                 media = InputMediaPhoto(update.message.photo[-1].file_id)
             elif update.message.document:
                 media = InputMediaDocument(update.message.document.file_id)
             else:
-                update.message.reply_text("Please send a valid media/file to replace.")
+                update.message.reply_text("❌ Please send a valid media/file to replace.")
                 return EDIT_MESSAGE
 
             context.bot.edit_message_media(chat_id=chat_id, message_id=message_id, media=media)
-            update.message.reply_text("Message media/file updated successfully!")
+            update.message.reply_text("✅ Message media/file updated successfully!")
 
         return ConversationHandler.END
     except TelegramError as e:
-        update.message.reply_text(f"Error: {e}")
+        update.message.reply_text(f"❌ Error: {e}")
         return ConversationHandler.END
 
 def cancel(update: Update, context: CallbackContext) -> int:
-    update.message.reply_text("Edit operation cancelled.")
+    update.message.reply_text("❌ Edit operation cancelled.")
     return ConversationHandler.END
-    
-def sudolist(update: Update, context: CallbackContext):
-    if update.effective_user.id != OWNER_ID:
-        update.message.reply_text("You don't have permission to view the sudo list.")
-        return
-
-    sudo_users = list(sudo_users_collection.find())
-    if len(sudo_users) == 0:
-        update.message.reply_text("No sudo users found.")
-        return
-
-    sudo_list = "\n".join([str(user["user_id"]) for user in sudo_users])
-    update.message.reply_text(f"Sudo Users:\n{sudo_list}")
-
-def send(update: Update, context: CallbackContext):
-    user_id = update.effective_user.id
-    if user_id != OWNER_ID and not is_sudo_user(user_id):
-        update.message.reply_text("You don't have permission to use this command.")
-        return
-
-    if len(context.args) < 2:
-        update.message.reply_text("Usage: /send <user_id> <message>")
-        return
-
-    try:
-        target_user_id = int(context.args[0])
-        message = " ".join(context.args[1:])
-        context.bot.send_message(chat_id=target_user_id, text=message)
-        update.message.reply_text("Message sent successfully!")
-    except ValueError:
-        update.message.reply_text("Invalid user ID format.")
-    except TelegramError as e:
-        update.message.reply_text(f"Failed to send message: {e}")
 
 def main():
     updater = Updater("7382235042:AAFv5nrAHJEnq3cuJUOTCGLKYdVDeIaYZnE", use_context=True)
@@ -192,10 +129,6 @@ def main():
     )
 
     dp.add_handler(conv_handler)
-    dp.add_handler(CommandHandler("sudo", sudo))
-    dp.add_handler(CommandHandler("rmsudo", rmsudo))
-    dp.add_handler(CommandHandler("sudolist", sudolist))  # Added handler for /sudolist
-    dp.add_handler(CommandHandler("send", send))          # Added handler for /send
 
     updater.start_polling()
     updater.idle()
